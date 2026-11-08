@@ -1,0 +1,104 @@
+name: tp-aos
+
+services:
+  # Base de données PostgreSQL pour le service Product
+  product-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: polyshop
+      POSTGRES_PASSWORD: polyshop
+      POSTGRES_DB: product
+    ports:
+      - "5432:5432"
+    volumes:
+      - product_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U polyshop -d product"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Base de données PostgreSQL pour le service Auth
+  auth-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: polyshop
+      POSTGRES_PASSWORD: polyshop
+      POSTGRES_DB: auth
+    ports:
+      - "5433:5432"
+    volumes:
+      - auth_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U polyshop -d auth"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Migration et Seed pour Auth
+  auth-migrate:
+    build:
+      context: ./auth
+      target: build
+    environment:
+      DATABASE_URL: postgresql://polyshop:polyshop@auth-db:5432/auth
+      JWT_SECRET: polyshop-super-secret-jwt-key-min-32-characters
+      JWT_ISSUER: polyshop-auth
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    command: >
+      sh -c "npx prisma db push --schema src/infrastructure/database/schema.postgres.prisma && npx tsx src/infrastructure/database/seed.ts"
+
+  # Migration et Seed pour Product
+  product-migrate:
+    build:
+      context: ./product
+      target: build
+    environment:
+      DATABASE_URL: postgresql://polyshop:polyshop@product-db:5432/product
+      JWT_SECRET: polyshop-super-secret-jwt-key-min-32-characters
+      JWT_ISSUER: polyshop-auth
+    depends_on:
+      product-db:
+        condition: service_healthy
+    command: >
+      sh -c "npx prisma db push --schema src/infrastructure/database/schema.postgres.prisma && npx tsx src/infrastructure/database/seed.ts"
+
+  # Microservice d'Authentification (Port hôte 3002)
+  auth:
+    build: ./auth
+    ports:
+      - "3002:3000"
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://polyshop:polyshop@auth-db:5432/auth
+      JWT_SECRET: polyshop-super-secret-jwt-key-min-32-characters
+      JWT_ISSUER: polyshop-auth
+      CORS_ORIGINS: "*"
+    depends_on:
+      auth-db:
+        condition: service_healthy
+      auth-migrate:
+        condition: service_completed_successfully
+
+  # Microservice Product (Port hôte 3001)
+  product:
+    build: ./product
+    ports:
+      - "3001:3000"
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://polyshop:polyshop@product-db:5432/product
+      JWT_SECRET: polyshop-super-secret-jwt-key-min-32-characters
+      JWT_ISSUER: polyshop-auth
+      CORS_ORIGINS: "*"
+    depends_on:
+      product-db:
+        condition: service_healthy
+      product-migrate:
+        condition: service_completed_successfully
+
+volumes:
+  product_db_data:
+  auth_db_data:

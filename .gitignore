@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Build outputs
+dist/
+*/dist/
+build/
+coverage/
+
+# Environment files (secrets)
+.env
+*/.env
+.env.local
+.env.*.local
+
+# Databases & Prisma cache
+*.db
+*.db-journal
+*/dev.db
+*/dev.db-journal
+src/generated/
+*/src/generated/
+
+# Explanations file excluded from push as requested
+EXPLICATIONS_TP.md
+explications_TP.md
+*explication*
+*EXPLICATION*
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# System & IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
